@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Live Disaster Map</h5>
+            </div>
+            <div class="card-body p-0">
+                <div id="map"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Recent Alerts</h5>
+                <span class="badge bg-danger" id="alert-count">{{ alerts|length }} Active</span>
+            </div>
+            <div class="card-body p-0" style="max-height: 445px; overflow-y: auto;">
+                <div class="list-group list-group-flush" id="alert-list">
+                    {% for alert in alerts %}
+                    <div class="list-group-item alert-card severity-{{ alert.severity }}"
+                        onclick="focusAlert({{ alert.latitude }}, {{ alert.longitude }}, '{{ alert.type }}')">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1 text-uppercase">{{ alert.type }}</h6>
+                            <small class="text-muted">{{ alert.timestamp.strftime('%H:%M') }}</small>
+                        </div>
+                        <p class="mb-1 small">{{ alert.location }}</p>
+                        <span
+                            class="badge bg-{{ 'danger' if alert.severity in ['high', 'critical'] else 'warning' if alert.severity == 'medium' else 'info' }} rounded-pill small">
+                            {{ alert.severity }}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const map = L.map('map').setView([20, 0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const markers = {};
+    const socket = io();
+
+    function addMarker(alert) {
+        const marker = L.marker([alert.latitude, alert.longitude])
+            .addTo(map)
+            .bindPopup(`<b>${alert.type.toUpperCase()}</b><br>${alert.location}<br><small>${alert.description}</small>`);
+        markers[alert.id] = marker;
+    }
+
+    // Initialize markers
+    {% for alert in alerts %}
+    addMarker({
+        id: {{ alert.id }},
+        type: {{ alert.type | tojson }},
+        location: {{ alert.location | tojson }},
+        latitude: {{ alert.latitude }},
+        longitude: {{ alert.longitude }},
+        description: {{ alert.description | replace('\n', ' ') | replace('\r', '') | tojson }}
+    });
+    {% endfor %}
+
+    function focusAlert(lat, lon, type) {
+        map.setView([lat, lon], 10);
+    }
+
+    socket.on('new_alert', function (alert) {
+        addMarker(alert);
+
+        // Add to list
+        const alertList = document.getElementById('alert-list');
+        const newItem = document.createElement('div');
+        newItem.className = `list-group-item alert-card severity-${alert.severity}`;
+        newItem.onclick = () => focusAlert(alert.latitude, alert.longitude, alert.type);
+        newItem.innerHTML = `
+            <div class="d-flex w-100 justify-content-between">
+                <h6 class="mb-1 text-uppercase">${alert.type}</h6>
+                <small class="text-muted">Just now</small>
+            </div>
+            <p class="mb-1 small">${alert.location}</p>
+            <span class="badge bg-${alert.severity === 'high' || alert.severity === 'critical' ? 'danger' : alert.severity === 'medium' ? 'warning' : 'info'} rounded-pill small">
+                ${alert.severity}
+            </span>
+        `;
+        alertList.prepend(newItem);
+
+        // Update count
+        const countBadge = document.getElementById('alert-count');
+        const currentCount = parseInt(countBadge.innerText);
+        countBadge.innerText = (currentCount + 1) + ' Active';
+
+        // Show Toast
+        const toastEl = document.getElementById('alertToast');
+        const toastTitle = document.getElementById('toastTitle');
+        const toastBody = document.getElementById('toastBody');
+
+        toastTitle.innerText = `🚨 NEW ${alert.type.toUpperCase()} ALERT`;
+        toastBody.innerHTML = `<strong>${alert.location}</strong><br>${alert.description}`;
+
+        const toast = new bootstrap.Toast(toastEl, { delay: 10000 });
+        toast.show();
+
+        // Browser notification
+        if (Notification.permission === "granted") {
+            new Notification(`NEW ALERT: ${alert.type.toUpperCase()}`, {
+                body: alert.location
+            });
+        }
+    });
+
+    // Request notification permission
+    if (Notification.permission !== "denied") {
+        Notification.requestPermission();
+    }
+</script>
+{% endblock %}

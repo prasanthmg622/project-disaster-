@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">Pending Incident Reports</h4>
+                <span class="badge bg-primary">{{ reports|length }} Pending</span>
+            </div>
+            <div class="card-body">
+                {% if reports %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date</th>
+                                <th>User</th>
+                                <th>Type</th>
+                                <th>Location</th>
+                                <th>Severity</th>
+                                <th>Details</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for report in reports %}
+                            <tr>
+                                <td><small>{{ report.timestamp.strftime('%Y-%m-%d %H:%M') }}</small></td>
+                                <td>{{ report.author.username }}</td>
+                                <td><span class="badge bg-secondary text-uppercase">{{ report.incident_type }}</span>
+                                </td>
+                                <td>{{ report.location }}</td>
+                                <td>
+                                    <span
+                                        class="badge bg-{{ 'danger' if report.severity in ['high', 'critical'] else 'warning' if report.severity == 'medium' else 'info' }}">
+                                        {{ report.severity }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal"
+                                        data-bs-target="#modal-{{ report.id }}">
+                                        View
+                                    </button>
+
+                                    <!-- Modal -->
+                                    <div class="modal fade" id="modal-{{ report.id }}" tabindex="-1">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title">Report Details</h5>
+                                                    <button type="button" class="btn-close"
+                                                        data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <p><b>Description:</b> {{ report.description }}</p>
+                                                    <p><b>Coordinates:</b> {{ report.latitude }}, {{ report.longitude }}
+                                                    </p>
+                                                    {% if report.image_path %}
+                                                    <img src="{{ url_for('static', filename='uploads/' + report.image_path) }}"
+                                                        class="img-fluid rounded mb-3" alt="Incident Photo">
+                                                    {% endif %}
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary"
+                                                        data-bs-dismiss="modal">Close</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ url_for('admin.approve_report', id=report.id) }}"
+                                            class="btn btn-success">Approve</a>
+                                        <a href="{{ url_for('admin.reject_report', id=report.id) }}"
+                                            class="btn btn-danger" onclick="return confirm('Are you sure?')">Reject</a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <p class="text-muted">No pending reports at this time.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
